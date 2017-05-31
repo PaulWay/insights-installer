@@ -22,11 +22,9 @@ required_packages=""
 
 install_source=$((UID==0?0:1))
 use_virtualenv=$((UID==0?0:1))
-github_remotes=0
-insights_developer=0
 help=0
-git_remote_URL=''
-while getopts "hnrs" opt; do
+verbose=0
+while getopts "hnrsv" opt; do
     case "${opt}" in
         h)
             help=1
@@ -40,9 +38,14 @@ while getopts "hnrs" opt; do
         s)
             install_source=1
             ;;
+        v)
+            verbose=1
+            ;;
     esac
 done
 shift $((OPTIND - 1))
+
+# Check options
 
 if [[ $help -eq 1 ]]; then
     echo "Usage: $0 [-g git_remote_URL ] [-h] [-n] [-r] install_dir"
@@ -50,6 +53,7 @@ if [[ $help -eq 1 ]]; then
     echo "  -h                - this help"
     echo "  -n                - no source - do not clone source code locally"
     echo "  -r                - root install - do not use virtualenv for pip"
+    echo "  -v                - let pip and git be verbose"
     exit 0
 fi
 
@@ -75,6 +79,13 @@ if [[ $use_virtualenv -eq 1 ]]; then
     fi
 else
     echo "Installing globally."
+fi
+
+pip_quiet='-q'
+git_quiet='-q'
+if [[ $verbose -eq 1 ]]; then
+    pip_quiet=''
+    git_quiet=''
 fi
 
 ################################# Functions #################################
@@ -150,20 +161,20 @@ function update_repo {
     if [[ $install_source -eq 0 ]]; then
         echo "... Just installing via PIP"
         if [[ $repo =~ 'insights-core' ]]; then
-            pip install -q --upgrade ${repo}[develop]
+            pip install $pip_quiet --upgrade ${repo}[develop]
         else
-            pip install -q --upgrade $repo
+            pip install $pip_quiet --upgrade $repo
         fi
         return
     fi
 
     if [[ ! -d $dir ]]; then
         echo "...Cloning source into $dir"
-        git clone -q $repo $dir $@
+        git clone $git_quiet $repo $dir $@
         if [[ $dir == 'insights-core' ]]; then
-            pip install -q -e $dir[develop]
+            pip install $pip_quiet -e $dir[develop]
         else
-            pip install -q -e $dir
+            pip install $pip_quiet -e $dir
         fi
 
     else
@@ -191,14 +202,14 @@ function update_repo {
             git remote set-url origin $repo
         fi
 
-        git pull -q
+        git pull $git_quiet
         cd ..
         # This script tries to set it up so that people can develop new rules,
         # so we need to install the packages needed for developing in python.
         if [[ $dir == 'insights-core' ]]; then
-            pip install -q -e $dir[develop]
+            pip install $pip_quiet -e $dir[develop]
         else
-            pip install -q -e $dir
+            pip install $pip_quiet -e $dir
         fi
 
         if [[ $current_branch != 'master' ]]; then
@@ -259,12 +270,6 @@ update_repo https://github.com/RedHatInsights/insights-core.git
 
 echo "Installing Command Line interface..."
 update_repo https://github.com/RedHatInsights/insights-client.git
-
-echo "Installing Insights plugins..."
-update_repo https://github.com/RedHatInsights/insights-plugins.git
-
-echo "Installing Insights content server..."
-update_repo https://github.com/RedHatInsights/insights-content-server.git
 
 # Safety check - if we don't have a bin/insights-cli here, something's wrong.
 if [[ ! -f "$install_dir/bin/insights-cli" ]]; then
