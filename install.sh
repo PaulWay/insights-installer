@@ -258,7 +258,7 @@ echo "Installing rules engine..."
 update_repo https://github.com/RedHatInsights/insights-core.git
 
 echo "Installing Command Line interface..."
-update_repo https://github.com/RedHatInsights/insights-cli.git
+update_repo https://github.com/RedHatInsights/insights-client.git
 
 echo "Installing Insights plugins..."
 update_repo https://github.com/RedHatInsights/insights-plugins.git
