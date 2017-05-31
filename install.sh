@@ -17,7 +17,7 @@
 required_packages=""
 
 # TODO: support --no-source long flag for -n
-# TODO: support -h and --help
+# TODO: support --help long flag for -h
 # TODO: support --root long flag for -r
 
 install_source=$((UID==0?0:1))
@@ -26,14 +26,8 @@ github_remotes=0
 insights_developer=0
 help=0
 git_remote_URL=''
-while getopts "ghnrs" opt; do
+while getopts "hnrs" opt; do
     case "${opt}" in
-        d)
-            insights_developer=1
-            ;;
-        g)
-            github_remotes=1
-            ;;
         h)
             help=1
             ;;
@@ -53,7 +47,6 @@ shift $((OPTIND - 1))
 if [[ $help -eq 1 ]]; then
     echo "Usage: $0 [-g git_remote_URL ] [-h] [-n] [-r] install_dir"
     echo "Options:"
-    echo "  -g git_remote_URL - set this URL as a git remote for diag-insights-rules"
     echo "  -h                - this help"
     echo "  -n                - no source - do not clone source code locally"
     echo "  -r                - root install - do not use virtualenv for pip"
@@ -106,7 +99,7 @@ function check_binary {
 
 function check_package {
     # Because of different OSes having different package names, step through
-    # the list of package names and find the one that
+    # the list of package names and find the one that supplies what we need.
     local pkg=$1
     shift
     if ! rpm --quiet -q $pkg; then
@@ -156,7 +149,7 @@ function update_repo {
 
     if [[ $install_source -eq 0 ]]; then
         echo "... Just installing via PIP"
-        if [[ $repo =~ 'falafel' ]]; then
+        if [[ $repo =~ 'insights-core' ]]; then
             pip install -q --upgrade ${repo}[develop]
         else
             pip install -q --upgrade $repo
@@ -167,8 +160,8 @@ function update_repo {
     if [[ ! -d $dir ]]; then
         echo "...Cloning source into $dir"
         git clone -q $repo $dir $@
-        if [[ $dir == 'falafel' ]]; then
-            pip install -q -e falafel[develop]
+        if [[ $dir == 'insights-core' ]]; then
+            pip install -q -e $dir[develop]
         else
             pip install -q -e $dir
         fi
@@ -216,22 +209,6 @@ function update_repo {
         fi
     fi
 
-    # Set up the GitHub remotes for this directory if they aren't already set.
-    # Only do this if our 'origin' repo is the internal one
-    if [[ $github_remotes -eq 1 && $repo =~ 'gitlab.cee.redhat.com/insights-open-source' ]]; then
-        # Convert Repo URL to GitHub URL:
-        github_url=${repo/gitlab.cee.redhat.com/github.com}
-        github_url=${github_url/insights-open-source/RedHatInsights}
-
-        cd $dir
-        if git remote | grep -q ^github; then
-            echo "...GitHub remote for $dir exists already"
-        else
-            git remote add github $github_url
-            echo "...git remote 'github' set to $github_url"
-        fi
-        cd ..
-    fi
 }
 
 # Pre-requisites:
@@ -245,10 +222,7 @@ install_requirements
 
 # 1b) able to access VPN for git requests
 echo "Checking we can access git servers..."
-check_host gitlab.cee.redhat.com
-if [[ $github_remotes -eq 1 ]]; then
-    check_host github.com
-fi
+check_host github.com
 
 # 1c) Is virtualenv and other requirements available?
 echo "Checking if required commands and packages are installed..."
@@ -289,14 +263,8 @@ update_repo https://github.com/RedHatInsights/insights-cli.git
 echo "Installing Insights plugins..."
 update_repo https://github.com/RedHatInsights/insights-plugins.git
 
-echo "Installing Support Delivery plugins..."
-update_repo https://gitlab.cee.redhat.com/insights-sd/diag-insights-rules.git
-
 echo "Installing Insights content server..."
 update_repo https://github.com/RedHatInsights/insights-content-server.git
-
-echo "Installing Insights content..."
-update_repo https://gitlab.cee.redhat.com/insights-open-source/insights-content.git
 
 # Safety check - if we don't have a bin/insights-cli here, something's wrong.
 if [[ ! -f "$install_dir/bin/insights-cli" ]]; then
