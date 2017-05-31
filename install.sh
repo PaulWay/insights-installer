@@ -269,7 +269,7 @@ echo "Installing rules engine..."
 update_repo https://github.com/RedHatInsights/insights-core.git
 
 echo "Installing Command Line interface..."
-update_repo https://github.com/RedHatInsights/insights-client.git
+update_repo https://github.com/RedHatInsights/insights-cli.git
 
 # Safety check - if we don't have a bin/insights-cli here, something's wrong.
 if [[ ! -f "$install_dir/bin/insights-cli" ]]; then
