@@ -24,8 +24,12 @@ install_source=$((UID==0?0:1))
 use_virtualenv=$((UID==0?0:1))
 help=0
 verbose=0
-while getopts "hnrsv" opt; do
+git_fork=''
+while getopts "g:hnrsv" opt; do
     case "${opt}" in
+        g)
+            git_fork="$OPTARG"
+            ;;
         h)
             help=1
             ;;
@@ -168,6 +172,8 @@ function update_repo {
         return
     fi
 
+    # If the directory doesn't exist already, we only have to clone and
+    # install.
     if [[ ! -d $dir ]]; then
         echo "...Cloning source into $dir"
         git clone $git_quiet $repo $dir $@
@@ -178,9 +184,6 @@ function update_repo {
         fi
 
     else
-        echo "...Updating source in $dir"
-        cd $dir
-
         # We need to stash any changes the user might have made, go to the
         # master branch, pull that, and then pip install from that.  Then we
         # get back to where the user was by changing back to their branch and
@@ -188,6 +191,9 @@ function update_repo {
         # git stash on a directory with no changes is a warning but OK - if
         # there was a way to detect whether there was outstanding changes we
         # should use it.  Then update when using master.
+
+        echo "...Updating source in $dir"
+        cd $dir
 
         local current_branch=$( git branch | grep '*' | cut -c 3- )
         if [[ $current_branch != 'master' ]]; then
@@ -218,6 +224,15 @@ function update_repo {
             git stash apply
             cd ..
         fi
+    fi
+
+    # If the user has specified another remote to set up via the -g flag,
+    # Set that up.
+    if [[ ! -z "$git_fork" && $repo =~ 'github.com' ]]; then
+        local_repo_url=${repo/RedHatInsights/$git_fork}
+        cd $dir
+        git remote add $git_fork $local_repo_url
+        cd ..
     fi
 
 }
@@ -264,6 +279,10 @@ if [[ $use_virtualenv -eq 1 ]]; then
     fi
     . bin/activate
 fi
+
+# 2017-06-05 - Sphinx 1.6.2 seems to need Python > 3.5; preinstall 1.6.1 to
+# fix this problem
+pip install Sphinx==1.6.1
 
 echo "Installing rules engine..."
 update_repo https://github.com/RedHatInsights/insights-core.git
