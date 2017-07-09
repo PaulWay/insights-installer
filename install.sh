@@ -235,6 +235,15 @@ function update_repo {
         cd ..
     fi
 
+    # 2017-07-04 - Paul Wayper - For the insights-core, we currently need to
+    # use the '1.x' branch to maintain compatibility with the rule set and
+    # the CLI.
+    if [[ $repo =~ 'insights-core' ]]; then
+        cd insights-core
+        git checkout '1.x'
+        git pull
+        cd ..
+    fi
 }
 
 # Pre-requisites:
@@ -289,6 +298,9 @@ update_repo https://github.com/RedHatInsights/insights-core.git
 
 echo "Installing Command Line interface..."
 update_repo https://github.com/RedHatInsights/insights-cli.git
+
+echo "Installing demo rule set interface..."
+update_repo https://github.com/RedHatInsights/insights-plugins-demo.git
 
 # Safety check - if we don't have a bin/insights-cli here, something's wrong.
 if [[ ! -f "$install_dir/bin/insights-cli" ]]; then
