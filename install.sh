@@ -213,6 +213,13 @@ function update_repo {
         # This script tries to set it up so that people can develop new rules,
         # so we need to install the packages needed for developing in python.
         if [[ $dir == 'insights-core' ]]; then
+            # 2017-07-04 - Paul Wayper - For the insights-core, we currently
+            # need to use the '1.x' branch to maintain compatibility with the
+            # rule set and the CLI.
+            cd insights-core
+            git checkout '1.x'
+            git pull
+            cd ..
             pip install $pip_quiet -e $dir[develop]
         else
             pip install $pip_quiet -e $dir
@@ -232,16 +239,6 @@ function update_repo {
         local_repo_url=${repo/RedHatInsights/$git_fork}
         cd $dir
         git remote add $git_fork $local_repo_url
-        cd ..
-    fi
-
-    # 2017-07-04 - Paul Wayper - For the insights-core, we currently need to
-    # use the '1.x' branch to maintain compatibility with the rule set and
-    # the CLI.
-    if [[ $repo =~ 'insights-core' ]]; then
-        cd insights-core
-        git checkout '1.x'
-        git pull
         cd ..
     fi
 }
