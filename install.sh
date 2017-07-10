@@ -183,7 +183,7 @@ function update_repo {
     # install.
     requires_branch_change=0
     requires_unstash=0
-    local current_branch=$( git branch | grep '*' | cut -c 3- )
+    current_branch='master'
     if [[ ! -d $dir ]]; then
         echo "...Cloning source into $dir"
         git clone $git_quiet $repo $dir $@
@@ -195,6 +195,7 @@ function update_repo {
         # master branch, pull that, and then pip install from that.  Then we
         # get back to where the user was by changing back to their branch and
         # unstashing the changes.
+        current_branch=$( git branch | grep '*' | cut -c 3- )
         if [[ $current_branch != $dir_branch ]]; then
             requires_branch_change=1
             if [[ $( git diff | wc -l ) -gt 0 ]]; then
