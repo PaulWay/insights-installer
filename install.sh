@@ -1,7 +1,6 @@
 #!/usr/bin/bash
 
-# install.sh - install the Insights CLI as per:
-# https://docs.google.com/document/d/1eFWhpi9XCvmGOLVDsSc6GQSa1Tah78CTh2PKQUQ_QLo/edit
+# install.sh - install the Insights CLI and our demo repository
 # Written by Paul Wayper for Red Hat in August 2016.
 # GPL v3 license applies - see https://www.gnu.org/licenses/gpl.html
 # vim: set ts=4 et ai:
@@ -16,9 +15,7 @@
 
 required_packages=""
 
-# TODO: support --no-source long flag for -n
-# TODO: support --help long flag for -h
-# TODO: support --root long flag for -r
+# TODO: long flags for options
 
 install_source=$((UID==0?0:1))
 use_virtualenv=$((UID==0?0:1))
@@ -52,12 +49,14 @@ shift $((OPTIND - 1))
 # Check options
 
 if [[ $help -eq 1 ]]; then
-    echo "Usage: $0 [-g git_remote_URL ] [-h] [-n] [-r] install_dir"
+    echo "Usage: $0 [-g fork_name ] [-h] [-n] [-r] install_dir"
     echo "Options:"
-    echo "  -h                - this help"
-    echo "  -n                - no source - do not clone source code locally"
-    echo "  -r                - root install - do not use virtualenv for pip"
-    echo "  -v                - let pip and git be verbose"
+    echo "  -g fork_name - use this fork of insights-core as a remote"
+    echo "  -h           - this help"
+    echo "  -n           - no source - do not clone source code locally"
+    echo "  -r           - root install - do not use virtualenv for pip"
+    echo "  -v           - let pip and git be verbose"
+    echo "(fork_name taken from https://github.com/fork_name/insights-core.git)"
     exit 0
 fi
 
@@ -162,43 +161,46 @@ function update_repo {
     dir=${dir%%.git}
     # TODO: error detection
 
+    dir_branch='master'
+    extra_install_flag=''
+    if [[ "$repo" =~ 'insights-core' ]]; then
+        # 2017-07-04 - Paul Wayper - For the insights-core, we currently
+        # need to use the '1.x' branch to maintain compatibility with the
+        # rule set and the CLI.
+        dir_branch='1.x'
+        # This script tries to set it up so that people can develop new rules,
+        # so we need to install the packages needed for developing in python.
+        extra_install_flag='[develop]'
+    fi
+
     if [[ $install_source -eq 0 ]]; then
         echo "... Just installing via PIP"
-        if [[ $repo =~ 'insights-core' ]]; then
-            pip install $pip_quiet --upgrade ${repo}[develop]
-        else
-            pip install $pip_quiet --upgrade $repo
-        fi
+        pip install $pip_quiet --upgrade ${repo}${extra_install_flag}
         return
     fi
 
     # If the directory doesn't exist already, we only have to clone and
     # install.
+    requires_branch_change=0
+    requires_unstash=0
+    local current_branch=$( git branch | grep '*' | cut -c 3- )
     if [[ ! -d $dir ]]; then
         echo "...Cloning source into $dir"
         git clone $git_quiet $repo $dir $@
-        if [[ $dir == 'insights-core' ]]; then
-            pip install $pip_quiet -e $dir[develop]
-        else
-            pip install $pip_quiet -e $dir
-        fi
-
     else
+        echo "...Updating source in $dir"
+        cd $dir
+
         # We need to stash any changes the user might have made, go to the
         # master branch, pull that, and then pip install from that.  Then we
         # get back to where the user was by changing back to their branch and
         # unstashing the changes.
-        # git stash on a directory with no changes is a warning but OK - if
-        # there was a way to detect whether there was outstanding changes we
-        # should use it.  Then update when using master.
-
-        echo "...Updating source in $dir"
-        cd $dir
-
-        local current_branch=$( git branch | grep '*' | cut -c 3- )
-        if [[ $current_branch != 'master' ]]; then
-            git stash save
-            git checkout master
+        if [[ $current_branch != $dir_branch ]]; then
+            requires_branch_change=1
+            if [[ $( git diff | wc -l ) -gt 0 ]]; then
+                requires_unstash=1
+                git stash save
+            fi
         fi
 
         # Has the 'origin' remote changed?  If so, we need to change that.
@@ -208,34 +210,29 @@ function update_repo {
             git remote set-url origin $repo
         fi
 
-        git pull $git_quiet
         cd ..
-        # This script tries to set it up so that people can develop new rules,
-        # so we need to install the packages needed for developing in python.
-        if [[ $dir == 'insights-core' ]]; then
-            # 2017-07-04 - Paul Wayper - For the insights-core, we currently
-            # need to use the '1.x' branch to maintain compatibility with the
-            # rule set and the CLI.
-            cd insights-core
-            git checkout '1.x'
-            git pull
-            cd ..
-            pip install $pip_quiet -e $dir[develop]
-        else
-            pip install $pip_quiet -e $dir
-        fi
+    fi # Clone into directory or update existing
 
-        if [[ $current_branch != 'master' ]]; then
-            cd $dir
-            git checkout "$current_branch"
+    # Now pull down the required branch and update or install from it
+    cd $dir
+    git checkout $dir_branch
+    git pull $git_quiet
+    cd ..
+    pip install $pip_quiet -e ${dir}${extra_install_flag}
+
+    # Set everything back the way the user had it before
+    if [[ $requires_branch_change -eq 1 ]]; then
+        cd $dir
+        git checkout "$current_branch"
+        if [[ $requires_unstash -eq 1 ]]; then
             git stash apply
-            cd ..
         fi
+        cd ..
     fi
 
     # If the user has specified another remote to set up via the -g flag,
     # Set that up.
-    if [[ ! -z "$git_fork" && $repo =~ 'github.com' ]]; then
+    if [[ ! -z "$git_fork" && $repo =~ 'insights-core' ]]; then
         local_repo_url=${repo/RedHatInsights/$git_fork}
         cd $dir
         git remote add $git_fork $local_repo_url
