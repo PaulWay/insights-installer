@@ -286,7 +286,8 @@ fi
 
 # 2017-06-05 - Sphinx 1.6.2 seems to need Python > 3.5; preinstall 1.6.1 to
 # fix this problem
-pip install Sphinx==1.6.1
+echo "Installing Sphinx 1.6.1 for Python-2.7 compatibility"
+pip install $pip_quiet Sphinx==1.6.1
 
 echo "Installing rules engine..."
 update_repo https://github.com/RedHatInsights/insights-core.git
