@@ -164,10 +164,6 @@ function update_repo {
     dir_branch='master'
     extra_install_flag=''
     if [[ "$repo" =~ 'insights-core' ]]; then
-        # 2017-07-04 - Paul Wayper - For the insights-core, we currently
-        # need to use the '1.x' branch to maintain compatibility with the
-        # rule set and the CLI.
-        dir_branch='1.x'
         # This script tries to set it up so that people can develop new rules,
         # so we need to install the packages needed for developing in python.
         extra_install_flag='[develop]'
@@ -216,7 +212,9 @@ function update_repo {
 
     # Now pull down the required branch and update or install from it
     cd $dir
-    git checkout $dir_branch
+    if ! git branch | awk '/^\*/ { print $2 }' | grep -q $dir_branch; then
+        git checkout $dir_branch
+    fi
     git pull $git_quiet
     cd ..
     pip install $pip_quiet -e ${dir}${extra_install_flag}
@@ -292,17 +290,8 @@ pip install $pip_quiet Sphinx==1.6.1
 echo "Installing rules engine..."
 update_repo https://github.com/RedHatInsights/insights-core.git
 
-echo "Installing Command Line interface..."
-update_repo https://github.com/RedHatInsights/insights-cli.git
-
 echo "Installing demo rule set interface..."
 update_repo https://github.com/RedHatInsights/insights-plugins-demo.git
-
-# Safety check - if we don't have a bin/insights-cli here, something's wrong.
-if [[ ! -f "$install_dir/bin/insights-cli" ]]; then
-    echo "Error: cannot find $install_dir/bin/insights-cli - install has failed?"
-    exit 2
-fi
 
 # Safety check - if the user has $HOME/bin in their path, but it doesn't
 # exist, create it because we can use it.
