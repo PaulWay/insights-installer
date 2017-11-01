@@ -224,7 +224,7 @@ function update_repo {
         cd $dir
         git checkout "$current_branch"
         if [[ $requires_unstash -eq 1 ]]; then
-            git stash apply
+            git stash pop
         fi
         cd ..
     fi
@@ -286,6 +286,13 @@ fi
 # fix this problem
 echo "Installing Sphinx 1.6.1 for Python-2.7 compatibility"
 pip install $pip_quiet Sphinx==1.6.1
+
+# 2017-11-01 - cryptography > 2.1 seems to not install on Python 2.7, use 1.9
+echo "Installing cryptography 1.9 for Python 2.7 compatibility"
+pip install $pip_quiet cryptography==1.9
+
+########################################
+# Install the actual Insights components
 
 echo "Installing rules engine..."
 update_repo https://github.com/RedHatInsights/insights-core.git
