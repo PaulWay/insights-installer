@@ -55,7 +55,7 @@ if [[ $help -eq 1 ]]; then
     echo "  -h           - this help"
     echo "  -n           - no source - do not clone source code locally"
     echo "  -r           - root install - do not use virtualenv for pip"
-    echo "  -v           - let pip and git be verbose"
+    echo "  -v           - let other programs be verbose"
     echo "(fork_name taken from https://github.com/fork_name/insights-core.git)"
     exit 0
 fi
@@ -86,9 +86,11 @@ fi
 
 pip_quiet='-q'
 git_quiet='-q'
+venv_quiet='-q'
 if [[ $verbose -eq 1 ]]; then
     pip_quiet=''
     git_quiet=''
+    venv_quiet=''
 fi
 
 ################################# Functions #################################
@@ -154,9 +156,20 @@ function install_requirements {
     required_packages=''
 }
 
+function install_pip_exact_ver {
+    local package=$1
+    local version=$2
+    local op=${3:-==}
+    echo "Installing $package $version for Python 2.7 compatibility"
+    if ! pip install $pip_quiet $package$op$version; then
+        echo "ERROR: install of $package version $version failed.  Try the -v flag or 'pip install $package==$version' in the virtualenv"
+        exit 2
+    fi
+}
+
 function update_repo {
     local repo=$1
-    shift
+    local reponame=$2
     dir=${repo##*/}
     dir=${dir%%.git}
     # TODO: error detection
@@ -181,10 +194,15 @@ function update_repo {
     requires_unstash=0
     current_branch='master'
     if [[ ! -d $dir ]]; then
-        echo "...Cloning source into $dir"
-        git clone $git_quiet $repo $dir $@
+        echo "Installing $reponame into $dir"
+        git clone $git_quiet $repo $dir
+        # Sanity check - if $dir doesn't exist, git clone failed.
+        if [[ ! -d $dir ]]; then
+            echo "... ERROR: '$dir' not created - run with -v to find out why."
+            exit 2
+        fi
     else
-        echo "...Updating source in $dir"
+        echo "Updating $reponame in $dir"
         cd $dir
 
         # We need to stash any changes the user might have made, go to the
@@ -211,18 +229,18 @@ function update_repo {
     fi # Clone into directory or update existing
 
     # Now pull down the required branch and update or install from it
-    cd $dir
-    if ! git branch | awk '/^\*/ { print $2 }' | grep -q $dir_branch; then
-        git checkout $dir_branch
+    if [[ $requires_branch_change -eq 1 ]]; then
+        cd $dir
+        git checkout $git_quiet $dir_branch
+        git pull $git_quiet
+        cd ..
     fi
-    git pull $git_quiet
-    cd ..
     pip install $pip_quiet -e ${dir}${extra_install_flag}
 
     # Set everything back the way the user had it before
     if [[ $requires_branch_change -eq 1 ]]; then
         cd $dir
-        git checkout "$current_branch"
+        git checkout $git_quiet "$current_branch"
         if [[ $requires_unstash -eq 1 ]]; then
             git stash pop
         fi
@@ -277,28 +295,30 @@ if [[ $use_virtualenv -eq 1 ]]; then
 
     cd "$install_dir"
     if [[ ! -f bin/activate ]]; then
-        virtualenv .
+        virtualenv $venv_quiet .
     fi
     . bin/activate
+    # Early versions of pip don't understand the [develop] suffix, so we
+    # should upgrade pip.
+    pip install $pip_quiet --upgrade pip
 fi
 
 # 2017-06-05 - Sphinx 1.6.2 seems to need Python > 3.5; preinstall 1.6.1 to
 # fix this problem
-echo "Installing Sphinx 1.6.1 for Python-2.7 compatibility"
-pip install $pip_quiet Sphinx==1.6.1
+install_pip_exact_ver Sphinx '1.6.1'
 
 # 2017-11-01 - cryptography > 2.1 seems to not install on Python 2.7, use 1.9
-echo "Installing cryptography 1.9 for Python 2.7 compatibility"
-pip install $pip_quiet cryptography==1.9
+install_pip_exact_ver cryptography '1.9'
+
+# 2018-01-30 - ipython above 5.0 doesn't like Python 2.7 either, use 5.0
+install_pip_exact_ver ipython '5.2' '<'
 
 ########################################
 # Install the actual Insights components
 
-echo "Installing rules engine..."
-update_repo https://github.com/RedHatInsights/insights-core.git
+update_repo https://github.com/RedHatInsights/insights-core.git "rules engine"
 
-echo "Installing demo rule set interface..."
-update_repo https://github.com/RedHatInsights/insights-plugins-demo.git
+update_repo https://github.com/RedHatInsights/insights-plugins-demo.git "demo rule set"
 
 # Safety check - if the user has $HOME/bin in their path, but it doesn't
 # exist, create it because we can use it.
